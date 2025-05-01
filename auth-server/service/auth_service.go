@@ -304,6 +304,11 @@ func (s *AuthService) GetTokenHandler(c *gin.Context) {
 		log.Printf("Failed to generate refresh token: %v\n", err)
 		return
 	}
+
+	if s.repo.DeleteLoginDataByCode(req.Code) != nil {
+		log.Printf("Failed to delete login data: %v\n", err)
+	}
+
 	c.JSON(http.StatusOK, gin.H{
 		"access_token":  accessToken,
 		"refresh_token": refreshToken,

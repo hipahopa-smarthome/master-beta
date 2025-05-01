@@ -26,5 +26,6 @@ func main() {
 	if PORT == "" {
 		PORT = "8000"
 	}
+	log.Printf("Listening on port %s\n", PORT)
 	log.Fatal(router.Run(fmt.Sprintf(":%s", PORT)))
 }

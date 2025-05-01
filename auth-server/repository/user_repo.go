@@ -103,3 +103,14 @@ func (r *UserRepo) GetLoginDataByCode(code string) (*models.LoginData, error) {
 
 	return &loginData, nil
 }
+
+func (r *UserRepo) DeleteLoginDataByCode(code string) error {
+	ctx := context.Background()
+
+	err := r.rdb.Del(ctx, code).Err()
+	if err != nil {
+		return fmt.Errorf("failed deleting code from redis: %w", err)
+	}
+
+	return nil
+}
