@@ -10,16 +10,23 @@ import (
 )
 
 var (
-	PORT = os.Getenv("PORT")
+	PORT        = os.Getenv("PORT")
+	PostgresUrl = os.Getenv("POSTGRES_URL")
+	RedisUrl    = os.Getenv("REDIS_URL")
 )
 
 func main() {
 	router := gin.Default()
 
-	dsn := "host=localhost user=user password=insecure dbname=smart-home port=5432 sslmode=disable"
-	database := db.Connect(dsn)
+	if PostgresUrl == "" {
+		PostgresUrl = "host=localhost user=user password=insecure dbname=smart-home port=5432 sslmode=disable"
+	}
+	database := db.Connect(PostgresUrl)
 
-	rdb := db.NewRedisClient("localhost:6379")
+	if RedisUrl == "" {
+		RedisUrl = "localhost:6379"
+	}
+	rdb := db.NewRedisClient(RedisUrl)
 
 	handlers.RegisterAuthRoutes(router, database, rdb)
 
