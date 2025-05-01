@@ -1,0 +1,22 @@
+services:
+  postgres:
+    image: postgres:latest
+    container_name: postgres
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: user
+      POSTGRES_PASSWORD: insecure
+      POSTGRES_DB: smart-home
+    volumes:
+      - ./postgres:/var/lib/postgresql/data
+    restart: always
+
+  redis:
+    image: redis:8.0-rc1-alpine
+    container_name: redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - ./redis:/data
+    restart: always
