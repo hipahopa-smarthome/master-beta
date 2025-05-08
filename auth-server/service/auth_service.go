@@ -175,7 +175,6 @@ func (s *AuthService) LoginHandler(c *gin.Context) {
 			url.QueryEscape(scope),
 		)
 
-		// Return the redirect URL in the response
 		c.JSON(http.StatusOK, gin.H{
 			"redirect_url": redirectURL,
 		})
@@ -192,26 +191,34 @@ func (s *AuthService) LoginHandler(c *gin.Context) {
 }
 
 func (s *AuthService) RefreshTokenHandler(c *gin.Context) {
-	var req models.RefreshRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error": "Invalid request payload",
-		})
+	if c.ContentType() != "application/x-www-form-urlencoded" {
+		c.JSON(http.StatusUnsupportedMediaType, gin.H{"error": "unsupported_media_type"})
+		return
+	}
+
+	grantType := c.PostForm("grant_type")
+	if grantType != "refresh_token" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "unsupported_grant_type"})
+		return
+	}
+
+	refreshToken := c.PostForm("refresh_token")
+	if refreshToken == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid_request", "error_description": "Missing refresh_token"})
 		return
 	}
 
 	claims := &Claims{}
-	token, err := jwt.ParseWithClaims(req.RefreshToken, claims,
-		func(token *jwt.Token) (interface{}, error) {
-			if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
-				return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
-			}
-			return s.refreshPublicKey, nil
-		},
-	)
+	token, err := jwt.ParseWithClaims(refreshToken, claims, func(token *jwt.Token) (interface{}, error) {
+		if _, ok := token.Method.(*jwt.SigningMethodRSA); !ok {
+			return nil, fmt.Errorf("unexpected signing method")
+		}
+		return s.refreshPublicKey, nil
+	})
 	if err != nil || !token.Valid {
 		c.JSON(http.StatusUnauthorized, gin.H{
-			"error": "Invalid or expired refresh token",
+			"error":             "invalid_grant",
+			"error_description": "Invalid or expired refresh token",
 		})
 		return
 	}
@@ -219,31 +226,29 @@ func (s *AuthService) RefreshTokenHandler(c *gin.Context) {
 	user, err := s.repo.GetUserById(claims.UserID)
 	if err != nil {
 		c.JSON(http.StatusUnauthorized, gin.H{
-			"error": "User not found",
+			"error":             "invalid_grant",
+			"error_description": "User not found",
 		})
 		return
 	}
 
-	newAccessToken, err := s.generateAccessToken(user)
+	accessToken, err := s.generateAccessToken(user)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": "Failed to generate access token",
-		})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "server_error"})
 		return
 	}
 
-	newRefreshToken, err := s.generateRefreshToken(user)
+	refreshTokenNew, err := s.generateRefreshToken(user)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": "Failed to generate refresh token",
-		})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "server_error"})
 		return
 	}
 
 	c.JSON(http.StatusOK, gin.H{
-		"access_token":  newAccessToken,
-		"refresh_token": newRefreshToken,
+		"access_token":  accessToken,
+		"token_type":    "Bearer",
 		"expires_in":    int64(s.accessTokenDuration.Seconds()),
+		"refresh_token": refreshTokenNew,
 	})
 }
 
