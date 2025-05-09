@@ -3,6 +3,7 @@ package main
 import (
 	"auth-server/db"
 	"auth-server/handlers"
+	"auth-server/service"
 	"fmt"
 	"github.com/gin-gonic/gin"
 	"log"
@@ -18,17 +19,28 @@ var (
 func main() {
 	router := gin.Default()
 
+	// init psql
 	if PostgresUrl == "" {
 		PostgresUrl = "host=localhost user=user password=insecure dbname=smart-home port=5432 sslmode=disable"
 	}
 	database := db.Connect(PostgresUrl)
 
+	// init redis
 	if RedisUrl == "" {
 		RedisUrl = "localhost:6379"
 	}
-	rdb := db.NewRedisClient(RedisUrl)
+	rdb0, rdb1 := db.NewRedisClient(RedisUrl)
 
-	handlers.RegisterAuthRoutes(router, database, rdb)
+	// init smtp
+	smtpConfig := service.SmtpConfig{
+		Host:     os.Getenv("SMTP_HOST"),
+		Port:     os.Getenv("SMTP_PORT"),
+		Password: os.Getenv("SMTP_PASSWORD"),
+		Username: os.Getenv("SMTP_USERNAME"),
+	}
+
+	// register routes
+	handlers.RegisterAuthRoutes(router, database, rdb0, rdb1, smtpConfig)
 
 	if Port == "" {
 		Port = "8080"

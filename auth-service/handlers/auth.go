@@ -9,10 +9,10 @@ import (
 	"gorm.io/gorm"
 )
 
-func RegisterAuthRoutes(r *gin.Engine, db *gorm.DB, rdb *redis.Client) {
-	repo := repository.NewUserRepo(db, rdb)
+func RegisterAuthRoutes(r *gin.Engine, db *gorm.DB, rdb0 *redis.Client, rdb1 *redis.Client, smtpConfig service.SmtpConfig) {
+	repo := repository.NewUserRepo(db, rdb0, rdb1)
 
-	svc, err := service.NewAuthService(repo)
+	svc, err := service.NewAuthService(repo, smtpConfig)
 	if err != nil {
 		panic(fmt.Errorf("failed initializing AuthService: %s", err))
 	}
@@ -21,4 +21,8 @@ func RegisterAuthRoutes(r *gin.Engine, db *gorm.DB, rdb *redis.Client) {
 	r.POST("/auth/login", svc.LoginHandler)
 	r.POST("/auth/token", svc.GetTokenHandler)
 	r.POST("/auth/refresh", svc.RefreshTokenHandler)
+
+	codeRequestGroup := r.Group("/", svc.JWTAuthMiddleware())
+	codeRequestGroup.POST("/auth/register/code/request", svc.CodeRequestHandler)
+	codeRequestGroup.POST("/auth/register/code/confirm", svc.CodeConfirmationHandler)
 }
