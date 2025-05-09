@@ -11,7 +11,7 @@ type Device struct {
 	Type        string          `json:"type"`
 	CustomData  json.RawMessage `gorm:"column:custom_data" json:"custom_data,omitempty"`
 	StatusInfo  json.RawMessage `gorm:"column:status_info" json:"status_info"`
-	DeviceInfo  DeviceInfo      `gorm:"foreignKey:DeviceID" json:"device_info,omitempty"`
+	DeviceInfo  DeviceInfo      `gorm:"column:device_info" json:"device_info,omitempty"`
 
 	Capabilities []Capability `gorm:"foreignKey:DeviceID" json:"capabilities,omitempty"`
 	Properties   []Property   `gorm:"foreignKey:DeviceID" json:"properties,omitempty"`
@@ -27,7 +27,7 @@ type DeviceInfo struct {
 }
 
 type Capability struct {
-	ID          int             `gorm:"primaryKey" json:"-"`
+	ID          string          `gorm:"type:uuid;primary_key" json:"id"`
 	DeviceID    string          `gorm:"column:device_id" json:"-"`
 	Type        string          `json:"type"`
 	Retrievable bool            `json:"retrievable"`
@@ -37,7 +37,7 @@ type Capability struct {
 }
 
 type Property struct {
-	ID          int             `gorm:"primaryKey" json:"-"`
+	ID          string          `gorm:"type:uuid;primary_key" json:"id"`
 	DeviceID    string          `gorm:"column:device_id" json:"-"`
 	Type        string          `json:"type"`
 	Retrievable bool            `json:"retrievable"`
