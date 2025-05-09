@@ -10,7 +10,7 @@ import (
 )
 
 var (
-	PORT        = os.Getenv("PORT")
+	Port        = os.Getenv("PORT")
 	PostgresUrl = os.Getenv("POSTGRES_URL")
 	RedisUrl    = os.Getenv("REDIS_URL")
 )
@@ -30,9 +30,9 @@ func main() {
 
 	handlers.RegisterAuthRoutes(router, database, rdb)
 
-	if PORT == "" {
-		PORT = "8000"
+	if Port == "" {
+		Port = "8080"
 	}
-	log.Printf("Listening on port %s\n", PORT)
-	log.Fatal(router.Run(fmt.Sprintf(":%s", PORT)))
+	log.Printf("Listening on port %s\n", Port)
+	log.Fatal(router.Run(fmt.Sprintf(":%s", Port)))
 }

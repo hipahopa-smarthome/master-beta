@@ -83,10 +83,10 @@ func (r *DevicesRepo) SaveOrUpdateDevice(device *models.Device) error {
 	//}
 }
 
-func (r *DevicesRepo) UpdateCapabilityByStateId(capabilityId int, newState []byte) error {
+func (r *DevicesRepo) UpdateCapabilityStateByDeviceIdAndType(deviceId string, capabilityType string, newState []byte) error {
 	return r.db.
 		Model(&models.Capability{}).
-		Where("id = ?", capabilityId).
+		Where("device_id = ? AND type = ?", deviceId, capabilityType).
 		Update("state", newState).
 		Error
 }

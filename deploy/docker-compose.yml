@@ -1,6 +1,6 @@
 services:
   postgres:
-    image: postgres:latest
+    image: postgres:17.4
     container_name: postgres
     ports:
       - "5432:5432"
@@ -10,7 +10,7 @@ services:
       POSTGRES_DB: smart-home
     volumes:
       - ./postgres:/var/lib/postgresql/data
-    restart: always
+    restart: unless-stopped
 
   redis:
     image: redis:8.0-rc1-alpine
@@ -19,4 +19,44 @@ services:
       - "6379:6379"
     volumes:
       - ./redis:/data
-    restart: always
+    restart: unless-stopped
+
+  auth-service:
+    image: arsanoshin/smart-home-auth-service:latest
+    container_name: auth-service
+    ports:
+      - "8081:8081"
+    environment:
+      PORT: 8081
+      POSTGRES_URL: postgresql://user:insecure@postgres:5432/smart-home
+      REDIS_URL: redis:6379
+      GIN_MODE: release
+    volumes:
+      - ./keys:/app/keys:ro
+    depends_on:
+      - postgres
+      - redis
+    restart: unless-stopped
+
+  devices-api-service:
+    image: arsanoshin/smart-home-devices-api-service:latest
+    container_name: devices-api-service
+    ports:
+      - "8082:8082"
+    environment:
+      PORT: 8082
+      POSTGRES_URL: postgresql://user:insecure@postgres:5432/smart-home
+      GIN_MODE: release
+    volumes:
+      - ./keys:/app/keys:ro
+    depends_on:
+      - postgres
+      - auth-service
+    restart: unless-stopped
+
+  web:
+    image: arsanoshin/smart-home-devices-web:latest
+    container_name: web
+    ports:
+      - "8083:8083"
+    restart: unless-stopped

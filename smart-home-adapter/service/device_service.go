@@ -156,7 +156,7 @@ func (s *DevicesService) ActionDevices(c *gin.Context) {
 					return
 				}
 
-				err = s.deviceRepo.UpdateCapabilityByStateId(capability.ID, jsonIncomingState)
+				err = s.deviceRepo.UpdateCapabilityStateByDeviceIdAndType(device.ID, capability.Type, jsonIncomingState)
 				if err != nil {
 					log.Printf("Failed to update state: %v", err)
 					c.JSON(http.StatusInternalServerError, gin.H{

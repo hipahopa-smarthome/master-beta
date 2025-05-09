@@ -25,7 +25,7 @@ func main() {
 	handlers.RegisterYandexRoutes(router, database)
 
 	if PORT == "" {
-		PORT = "8000"
+		PORT = "8080"
 	}
 	log.Printf("Listening on port %s\n", PORT)
 	log.Fatal(router.Run(fmt.Sprintf(":%s", PORT)))
