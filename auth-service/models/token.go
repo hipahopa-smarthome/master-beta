@@ -3,7 +3,9 @@ package models
 type LoginResponse struct {
 	AccessToken  string `json:"accessToken"`
 	RefreshToken string `json:"refreshToken"`
+	TokenType    string `json:"tokenType"`
 	Email        string `json:"email"`
+	Confirmed    bool   `json:"confirmed"`
 	Name         string `json:"name"`
 	ExpiresIn    int64  `json:"expiresIn"`
 }

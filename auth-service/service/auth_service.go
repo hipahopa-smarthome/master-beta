@@ -209,26 +209,7 @@ func (s *AuthService) CodeRequestHandler(c *gin.Context) {
 		return
 	}
 
-	type CodeBody struct {
-		Email string `json:"email"`
-	}
-
-	var body CodeBody
-	if err := c.ShouldBindJSON(&body); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error": "Invalid request payload",
-		})
-		return
-	}
-
-	if body.Email != jwtUserEmail {
-		c.JSON(http.StatusUnauthorized, gin.H{
-			"error": "Invalid user",
-		})
-		return
-	}
-
-	user, err := s.repo.GetUserByEmail(body.Email)
+	user, err := s.repo.GetUserByEmail(fmt.Sprint(jwtUserEmail))
 	if err != nil {
 		if !errors.Is(err, gorm.ErrRecordNotFound) {
 			c.JSON(http.StatusInternalServerError, gin.H{
@@ -269,8 +250,7 @@ func (s *AuthService) CodeConfirmationHandler(c *gin.Context) {
 	}
 
 	type CodeBody struct {
-		Code  string `json:"code"`
-		Email string `json:"email"`
+		Code string `json:"code"`
 	}
 
 	var body CodeBody
@@ -281,14 +261,7 @@ func (s *AuthService) CodeConfirmationHandler(c *gin.Context) {
 		return
 	}
 
-	if body.Email != jwtUserEmail {
-		c.JSON(http.StatusUnauthorized, gin.H{
-			"error": "Invalid user",
-		})
-		return
-	}
-
-	user, err := s.repo.GetUserByEmail(body.Email)
+	user, err := s.repo.GetUserByEmail(fmt.Sprint(jwtUserEmail))
 	if err != nil {
 		if !errors.Is(err, gorm.ErrRecordNotFound) {
 			c.JSON(http.StatusInternalServerError, gin.H{
@@ -305,7 +278,7 @@ func (s *AuthService) CodeConfirmationHandler(c *gin.Context) {
 		return
 	}
 
-	correct, err := s.repo.CheckConfirmationCode(body.Code, body.Email)
+	correct, err := s.repo.CheckConfirmationCode(body.Code, fmt.Sprint(jwtUserEmail))
 	if err != nil {
 		if errors.Is(err, redis.Nil) {
 			c.JSON(http.StatusBadRequest, gin.H{
@@ -327,7 +300,7 @@ func (s *AuthService) CodeConfirmationHandler(c *gin.Context) {
 		return
 	}
 
-	err = s.repo.SetUserStatusConfirmed(body.Email)
+	err = s.repo.SetUserStatusConfirmed(fmt.Sprint(jwtUserEmail))
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"error": "Failed to set user status confirmed",
@@ -354,12 +327,13 @@ func (s *AuthService) CodeConfirmationHandler(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"email":         body.Email,
-		"confirmed":     true,
-		"access_token":  accessToken,
-		"refresh_token": refreshToken,
-		"expires_in":    int64(s.accessTokenDuration.Seconds()),
+	c.JSON(http.StatusOK, models.LoginResponse{
+		TokenType:    "Bearer",
+		AccessToken:  accessToken,
+		RefreshToken: refreshToken,
+		Email:        user.Email,
+		Confirmed:    user.Confirmed,
+		ExpiresIn:    int64(s.accessTokenDuration.Seconds()),
 	})
 }
 
@@ -406,6 +380,7 @@ func (s *AuthService) LoginHandler(c *gin.Context) {
 		return
 	}
 
+	// this part is for yandex-smarthome auth (https://yandex.ru/dev/dialogs/smart-home/doc/ru/auth/how-it-works)
 	if c.Query("smart-home") == "true" {
 		code := uuid.New().String()
 		clientId := c.Query("client_id")
@@ -439,6 +414,7 @@ func (s *AuthService) LoginHandler(c *gin.Context) {
 		AccessToken:  accessToken,
 		RefreshToken: refreshToken,
 		Email:        user.Email,
+		Confirmed:    user.Confirmed,
 		Name:         user.Name,
 		ExpiresIn:    int64(s.accessTokenDuration.Seconds()),
 	})
@@ -498,14 +474,17 @@ func (s *AuthService) RefreshTokenHandler(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"access_token":  accessToken,
-		"token_type":    "Bearer",
-		"expires_in":    int64(s.accessTokenDuration.Seconds()),
-		"refresh_token": refreshTokenNew,
+	c.JSON(http.StatusOK, models.LoginResponse{
+		TokenType:    "Bearer",
+		AccessToken:  accessToken,
+		RefreshToken: refreshTokenNew,
+		Email:        user.Email,
+		Confirmed:    user.Confirmed,
+		ExpiresIn:    int64(s.accessTokenDuration.Seconds()),
 	})
 }
 
+// GetTokenHandler is for yandex-smarthome auth (https://yandex.ru/dev/dialogs/smart-home/doc/ru/auth/how-it-works)
 func (s *AuthService) GetTokenHandler(c *gin.Context) {
 	var req models.TokenRequest
 
@@ -568,9 +547,12 @@ func (s *AuthService) GetTokenHandler(c *gin.Context) {
 		log.Printf("Failed to delete login data: %v\n", err)
 	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"access_token":  accessToken,
-		"refresh_token": refreshToken,
-		"expires_in":    int64(s.accessTokenDuration.Seconds()),
+	c.JSON(http.StatusOK, models.LoginResponse{
+		TokenType:    "Bearer",
+		AccessToken:  accessToken,
+		RefreshToken: refreshToken,
+		Email:        user.Email,
+		Confirmed:    user.Confirmed,
+		ExpiresIn:    int64(s.accessTokenDuration.Seconds()),
 	})
 }
