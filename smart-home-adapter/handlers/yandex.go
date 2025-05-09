@@ -18,7 +18,7 @@ func RegisterYandexRoutes(r *gin.Engine, db *gorm.DB) {
 	r.HEAD("/yandex/v1.0", svc.AliveStatus)
 
 	protected := r.Group("/")
-	protected.Use(svc.JWTAuthMiddleware())
+	protected.Use(svc.EmailConfirmedAuthMiddleware())
 	{
 		protected.POST("/yandex/v1.0/user/unlink", svc.UnlinkAccount)
 		protected.GET("/yandex/v1.0/user/devices", svc.ListDevices)
