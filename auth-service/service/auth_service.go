@@ -807,7 +807,7 @@ func (s *AuthService) sendEmail(to []string, subject, body string) error {
 	message := []byte(
 		"From: " + subject + "\r\n" +
 			"To: " + strings.Join(to, ", ") + "\r\n" +
-			"From: " + s.smtpConfig.Username + "\r\n" +
+			"From: " + "Smarthome" + "\r\n" +
 			"Subject: " + subject + "\r\n" +
 			"MIME-Version: 1.0\r\n" +
 			"Content-Type: text/html; charset=utf-8\r\n" +
