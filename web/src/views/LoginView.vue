@@ -1,5 +1,5 @@
 <script setup>
-import {ref} from 'vue'
+import {ref, watch} from 'vue'
 import {useRoute, useRouter} from 'vue-router'
 
 const router = useRouter()
@@ -21,7 +21,29 @@ const form = ref({
   password: ''
 })
 
+const errors = ref({
+  email: '',
+  password: '',
+  form: ''
+})
+
 const handleLogin = async () => {
+  errors.value = {
+    email: '',
+    password: '',
+    form: ''
+  }
+
+  if (!form.value.email) {
+    errors.value.email = 'Введите email'
+  }
+  if (!form.value.password) {
+    errors.value.password = 'Введите пароль'
+  }
+  if (errors.value.email || errors.value.password) {
+    return
+  }
+
   let apiUrl = `${baseUrl}/auth/login`
 
   if (
@@ -53,7 +75,13 @@ const handleLogin = async () => {
     })
 
     if (!response.ok) {
-      throw new Error('Login failed')
+      if (response.status === 401) {
+        errors.value.form = 'Неверная почта или пароль'
+      } else {
+        errors.value.form = 'Неизвестная ошибка'
+        console.error(response)
+      }
+      return
     }
 
     const data = await response.json()
@@ -62,13 +90,33 @@ const handleLogin = async () => {
     if (redirect_url) {
       window.location.href = redirect_url
     } else {
-      router.push('/')
+      await router.push('/')
     }
   } catch (error) {
     console.error('Error:', error)
-    alert('Login failed. Please check your credentials.')
+    errors.value.form = 'Ошибка соединения с сервером'
   }
 }
+
+watch(() => form.value.email, (newVal) => {
+  if (!newVal) {
+    errors.value.email = 'Введите email'
+  } else if (!/^\S+@\S+\.\S+$/.test(newVal)) {
+    errors.value.email = 'Некорректный email'
+  } else {
+    errors.value.email = ''
+  }
+})
+
+watch(() => form.value.password, (newVal) => {
+  if (!newVal) {
+    errors.value.password = 'Введите пароль'
+  } else if (newVal.length < 8) {
+    errors.value.password = 'Минимум 8 символов'
+  } else {
+    errors.value.password = ''
+  }
+})
 </script>
 
 <template>
@@ -79,14 +127,33 @@ const handleLogin = async () => {
     </div>
     <form @submit.prevent="handleLogin" class="login-form">
 
-      <input v-model="form.email" type="text" id="email" name="email" placeholder="mail@mail.ru" required/>
+      <input v-model="form.email"
+             :class="{'input-error': errors.email || errors.form}"
+             type="text"
+             id="email"
+             name="email"
+             placeholder="mail@mail.ru"
+             required/>
+      <span v-if="errors.email" class="error-text">{{ errors.email }}</span>
 
-      <input v-model="form.password" type="password" id="password" name="password" placeholder="your-password" required/>
 
-      <router-link to="/reset-password" class="forgot-link">Forgot password?</router-link>
-      <p class="register-link">Not a Member? <router-link to="/register" class="forgot-link">Create an account</router-link></p>
+      <input v-model="form.password"
+             :class="{'input-error': errors.password || errors.form}"
+             type="password"
+             id="password"
+             name="password"
+             placeholder="password"
+             required/>
+      <span v-if="errors.password" class="error-text">{{ errors.password }}</span>
 
-      <button type="submit" class>Sign In</button>
+      <router-link to="/reset-password" class="forgot-link">Забыли пароль?</router-link>
+      <p class="register-link">Нет аккаунта?
+        <router-link to="/register" class="forgot-link">Зарегистрироваться</router-link>
+      </p>
+
+      <button type="submit" class>Войти</button>
+
+      <span v-if="errors.form" class="error-text">{{ errors.form }}</span>
     </form>
   </div>
 </template>
@@ -96,12 +163,24 @@ const handleLogin = async () => {
   color: white;
 }
 
+.input-error {
+  border: 1px solid #ff4d4f !important;
+}
+
+.error-text {
+  color: #ff4d4f;
+  font-size: 12px;
+  max-width: 300px;
+  margin-top: 4px;
+  width: 100%;
+  text-align: center;
+}
+
 .login-container {
   display: flex;
   flex-direction: column;
-  background: linear-gradient(135deg, #1f1f1f, #3a3a3a);
   width: 100%;
-  height: 100vh;
+  height: calc(100vh - 230px);
   padding-top: 230px;
   margin: auto 0;
 }
