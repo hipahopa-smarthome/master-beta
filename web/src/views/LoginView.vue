@@ -151,7 +151,7 @@ watch(() => form.value.password, (newVal) => {
         <router-link to="/register" class="forgot-link">Зарегистрироваться</router-link>
       </p>
 
-      <button type="submit" class>Войти</button>
+      <button type="submit" class>Авторизоваться</button>
 
       <span v-if="errors.form" class="error-text">{{ errors.form }}</span>
     </form>
@@ -201,10 +201,10 @@ watch(() => form.value.password, (newVal) => {
 }
 
 .login-form input {
-  margin: 5px auto;
-  padding: 14px;
+  margin: 6px auto;
+  padding: 16px;
   background-color: #1e1e1e;
-  border: 1px solid #2c2c2c;
+  border: 1px solid #505050;
   border-radius: 10px;
   color: #fff;
   font-size: 14px;
