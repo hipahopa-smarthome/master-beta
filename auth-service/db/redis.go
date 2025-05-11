@@ -6,26 +6,30 @@ import (
 	"log"
 )
 
-func NewRedisClient(addr string) (*redis.Client, *redis.Client) {
-	client0 := redis.NewClient(&redis.Options{
+type RedisClients struct {
+	DB0 *redis.Client
+	DB1 *redis.Client
+}
+
+func NewRedisClients(addr string) *RedisClients {
+	db0 := newRedisClient(addr, 0)
+	db1 := newRedisClient(addr, 1)
+
+	return &RedisClients{
+		DB0: db0,
+		DB1: db1,
+	}
+}
+
+func newRedisClient(addr string, db int) *redis.Client {
+	client := redis.NewClient(&redis.Options{
 		Addr: addr,
-		DB:   0,
+		DB:   db,
 	})
 
-	client1 := redis.NewClient(&redis.Options{
-		Addr: addr,
-		DB:   1,
-	})
-
-	_, err := client0.Ping(context.Background()).Result()
-	if err != nil {
-		log.Fatalf("Failed to connect to Redis db 0: %v", err)
+	if _, err := client.Ping(context.Background()).Result(); err != nil {
+		log.Fatalf("Failed to connect to Redis DB %d: %v", db, err)
 	}
 
-	_, err = client1.Ping(context.Background()).Result()
-	if err != nil {
-		log.Fatalf("Failed to connect to Redis db 1: %v", err)
-	}
-
-	return client0, client1
+	return client
 }

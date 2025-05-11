@@ -17,6 +17,7 @@ import (
 	"net/http"
 	"net/smtp"
 	"net/url"
+	"strings"
 	"time"
 )
 
@@ -110,12 +111,12 @@ func (s *AuthService) RegisterHandler(c *gin.Context) {
 		return
 	}
 
-	err = s.SendEmailConfirmationCode(user)
+	err = s.sendEmailConfirmationCode(user)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": "Failed to send email confirmation code",
+			"error": "failed to send email confirmation code",
 		})
-		log.Printf("Failed to send email confirmation code: %v\n", err)
+		log.Printf("failed to send email confirmation code: %v\n", err)
 		return
 	}
 
@@ -153,53 +154,6 @@ func (s *AuthService) RegisterHandler(c *gin.Context) {
 	})
 }
 
-func (s *AuthService) SendEmailConfirmationCode(user *models.User) error {
-	// generate code
-	confirmationCode := fmt.Sprintf("%06d", int(rand.Float32()*1000000))
-	expiresAt := 15 * time.Minute
-
-	err := s.repo.SetEmailByConfirmationCode(confirmationCode, user.Email, expiresAt)
-	if err != nil {
-		return err
-	}
-
-	// send code
-	emailBody := fmt.Sprintf(`
-        <h1>Your Verification Code</h1>
-        <p>Please use the following code to verify your email:</p>
-        <h2 style="font-size: 24px; letter-spacing: 2px;">%s</h2>
-        <p>This code will expire in %s minutes.</p>
-    `, confirmationCode, fmt.Sprintf("%.0f", expiresAt.Minutes()))
-
-	err = s.sendEmail([]string{user.Email}, "Your Verification Code", emailBody)
-	if err != nil {
-		return fmt.Errorf("failed to send confirmation email: %w", err)
-	}
-
-	return nil
-}
-
-func (s *AuthService) sendEmail(to []string, subject, body string) error {
-	auth := smtp.PlainAuth("", s.smtpConfig.Username, s.smtpConfig.Password, s.smtpConfig.Host)
-
-	message := []byte(
-		"Subject: " + subject + "\r\n" +
-			"To: " + to[0] + "\r\n" +
-			"From: " + s.smtpConfig.Username + "\r\n\r\n" +
-			body + "\r\n",
-	)
-
-	err := smtp.SendMail(
-		s.smtpConfig.Host+":"+s.smtpConfig.Port,
-		auth,
-		s.smtpConfig.Username,
-		to,
-		message,
-	)
-
-	return err
-}
-
 func (s *AuthService) CodeRequestHandler(c *gin.Context) {
 	jwtUserEmail, exists := c.Get("userEmail")
 	if !exists {
@@ -226,7 +180,7 @@ func (s *AuthService) CodeRequestHandler(c *gin.Context) {
 		return
 	}
 
-	err = s.SendEmailConfirmationCode(user)
+	err = s.sendEmailConfirmationCode(user)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"error": "Failed to send email confirmation code",
@@ -278,7 +232,7 @@ func (s *AuthService) CodeConfirmationHandler(c *gin.Context) {
 		return
 	}
 
-	correct, err := s.repo.CheckConfirmationCode(body.Code, fmt.Sprint(jwtUserEmail))
+	correct, err := s.repo.CheckCodeWithEmail(body.Code, fmt.Sprint(jwtUserEmail))
 	if err != nil {
 		if errors.Is(err, redis.Nil) {
 			c.JSON(http.StatusBadRequest, gin.H{
@@ -558,4 +512,363 @@ func (s *AuthService) GetTokenHandler(c *gin.Context) {
 		Confirmed:    user.Confirmed,
 		ExpiresIn:    int64(s.accessTokenDuration.Seconds()),
 	})
+}
+
+func (s *AuthService) ResetPasswordHandler(c *gin.Context) {
+	type ResetPasswordRequest struct {
+		Email string `json:"email" binding:"required"`
+	}
+
+	var req ResetPasswordRequest
+	if err := c.ShouldBind(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": "Invalid request",
+		})
+		return
+	}
+
+	user, err := s.repo.GetUserByEmail(req.Email)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			c.JSON(http.StatusForbidden, gin.H{
+				"error": "User with this email not found",
+			})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": "cannot reset password",
+		})
+		log.Printf("failed to get user from db: %v\n", err)
+		return
+	}
+
+	// generate uuidV7Code code for resetting password
+	uuidV7Code, err := uuid.NewV7()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": "cannot reset password",
+		})
+		log.Printf("failed to generate uuidV7Code: %v\n", err)
+		return
+	}
+
+	uuidCode := uuidV7Code.String()
+
+	err = s.repo.SetResetPasswordCode(uuidCode, user.Email)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": "cannot reset password",
+		})
+		log.Printf("failed to save code in redis: %v\n", err)
+		return
+	}
+
+	err = s.sendResetPasswordCode(uuidCode, user.Email)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": "cannot reset password",
+		})
+		log.Printf("failed to send link on email: %v\n", err)
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"email": user.Email,
+	})
+}
+
+func (s *AuthService) ChangePasswordHandler(c *gin.Context) {
+	type ConfirmResetPasswordRequest struct {
+		Code        string `json:"code"`
+		Email       string `json:"email"`
+		NewPassword string `json:"password" binding:"required"`
+	}
+	var req ConfirmResetPasswordRequest
+	if err := c.ShouldBind(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": "Invalid request",
+		})
+		return
+	}
+	if req.Code == "" && req.Email == "" {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": "Invalid request",
+		})
+		return
+	}
+	if req.Code != "" && req.Email != "" {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": "Invalid request",
+		})
+		return
+	}
+	var user *models.User
+	var err error
+	if req.Code == "" {
+		user, err = s.repo.GetUserByEmail(req.Email)
+		if err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				c.JSON(http.StatusForbidden, gin.H{
+					"error": "User with this email not found",
+				})
+				return
+			}
+			c.JSON(http.StatusInternalServerError, gin.H{
+				"error": "cannot reset password",
+			})
+			log.Printf("failed to get user from db: %v\n", err)
+			return
+		}
+
+		hashedPassword, err := bcrypt.GenerateFromPassword([]byte(req.NewPassword), bcrypt.DefaultCost)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{
+				"error": "cannot reset password",
+			})
+			log.Printf("failed to hash password: %v\n", err)
+			return
+		}
+
+		user.Password = string(hashedPassword)
+		err = s.repo.UpdateUserPassword(user.ID, user.Password)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{
+				"error": "cannot reset password",
+			})
+			log.Printf("failed to update user in db: %v\n", err)
+			return
+		}
+	} else {
+		// check if code is valid (present in redis)
+		emailInDb, err := s.repo.GetEmailByResetPasswordCode(req.Code)
+		if err != nil {
+			if errors.Is(err, redis.Nil) {
+				c.JSON(http.StatusForbidden, gin.H{
+					"error": "Reset password code not found",
+				})
+				return
+			}
+			c.JSON(http.StatusInternalServerError, gin.H{
+				"error": "cannot reset password",
+			})
+			log.Printf("failed to get email by reset password code: %v\n", err)
+			return
+		}
+
+		user, err = s.repo.GetUserByEmail(emailInDb)
+		if err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				c.JSON(http.StatusForbidden, gin.H{
+					"error": "User with this email not found",
+				})
+				return
+			}
+			c.JSON(http.StatusInternalServerError, gin.H{
+				"error": "cannot reset password",
+			})
+			log.Printf("failed to get user from db: %v\n", err)
+			return
+		}
+
+		hashedPassword, err := bcrypt.GenerateFromPassword([]byte(req.NewPassword), bcrypt.DefaultCost)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{
+				"error": "cannot reset password",
+			})
+			log.Printf("failed to hash password: %v\n", err)
+			return
+		}
+
+		user.Password = string(hashedPassword)
+		err = s.repo.UpdateUserPassword(user.ID, user.Password)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{
+				"error": "cannot reset password",
+			})
+			log.Printf("failed to update user in db: %v\n", err)
+			return
+		}
+
+		err = s.repo.DeleteResetPasswordCode(req.Code)
+		if err != nil {
+			log.Printf("failed to delete reset password code: %v\n", err)
+		}
+	}
+	c.JSON(http.StatusOK, gin.H{})
+}
+
+func (s *AuthService) sendResetPasswordCode(code string, email string) error {
+	emailBody := fmt.Sprintf(`
+	<!DOCTYPE html>
+	<html lang="en">
+	<head>
+	<meta charset="UTF-8">
+	<title>Password Reset</title>
+	<style>
+		body {
+			font-family: Arial, sans-serif;
+			background-color: #f4f4f4;
+			padding: 20px;
+		}
+	.container {
+		max-width: 600px;
+		margin: auto;
+		background: white;
+		padding: 30px;
+		border-radius: 8px;
+		box-shadow: 0 0 10px rgba(0,0,0,0.1);
+	}
+	h1 {
+		color: #333;
+	}
+	p {
+		font-size: 16px;
+		line-height: 1.5;
+	}
+	.button {
+		display: inline-block;
+		margin-top: 20px;
+		padding: 12px 24px;
+		background-color: #335f8f;
+		color: white;
+		text-decoration: none;
+		font-weight: bold;
+		border-radius: 5px;
+	}
+	.footer {
+		margin-top: 30px;
+		font-size: 14px;
+		color: #777;
+	}
+	</style>
+	</head>
+	<body>
+	<div class="container">
+	<h1>Password Reset Request</h1>
+	<p>We received a request to reset your account password. If this was you, please click the button below to continue:</p>
+
+	<a href="https://smarthome.hipahopa.ru/reset-password?code=%s" class="button">Reset Password</a>
+
+	<p>If you did not request a password reset, you can safely ignore this email.</p>
+
+	<div class="footer">
+		This link will expire in 15 minutes for security reasons.
+	</div>
+	</div>
+	</body>
+	</html>`, code)
+
+	err := s.sendEmail([]string{email}, "Your Verification Code", emailBody)
+	if err != nil {
+		return fmt.Errorf("failed to send confirmation email: %w", err)
+	}
+
+	return nil
+}
+
+func (s *AuthService) sendEmailConfirmationCode(user *models.User) error {
+	// generate code
+	confirmationCode := fmt.Sprintf("%06d", int(rand.Float32()*1000000))
+	expiresAt := 15 * time.Minute
+
+	err := s.repo.SetEmailConfirmationCode(confirmationCode, user.Email, expiresAt)
+	if err != nil {
+		return err
+	}
+
+	// send code
+	emailBody := fmt.Sprintf(`
+       <!DOCTYPE html>
+		<html>
+		<head>
+			<meta charset="utf-8">
+			<title>Verification Code</title>
+			<style>
+				body {
+					font-family: Arial, sans-serif;
+					background-color: #f9f9f9;
+					padding: 20px;
+				}
+				.email-container {
+					max-width: 500px;
+					margin: auto;
+					background-color: #ffffff;
+					padding: 30px;
+					border-radius: 8px;
+					box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+				}
+				h2 {
+					color: #333333;
+					font-size: 24px;
+					margin-bottom: 20px;
+				}
+				p {
+					font-size: 16px;
+					color: #555555;
+					line-height: 1.5;
+				}
+				.code {
+					display: inline-block;
+					margin: 20px 0;
+					padding: 12px 24px;
+					font-size: 22px;
+					letter-spacing: 2px;
+					font-weight: bold;
+					color: #333333;
+					background-color: #f0f0f0;
+					border-radius: 6px;
+					word-break: break-all;
+				}
+				.footer {
+					margin-top: 20px;
+					font-size: 14px;
+					color: #aaaaaa;
+				}
+			</style>
+		</head>
+		<body>
+			<div class="email-container">
+				<h2>Your Verification Code</h2>
+				<p>Please use the following code to verify your email:</p>
+				<div class="code">%s</div>
+				<p>This code will expire in %s minutes.</p>
+				<div class="footer">
+					If you did not request this code, please ignore this email.
+				</div>
+			</div>
+		</body>
+		</html>
+    `, confirmationCode, fmt.Sprintf("%.0f", expiresAt.Minutes()))
+
+	err = s.sendEmail([]string{user.Email}, "Your Verification Code", emailBody)
+	if err != nil {
+		return fmt.Errorf("failed to send confirmation email: %w", err)
+	}
+
+	return nil
+}
+
+func (s *AuthService) sendEmail(to []string, subject, body string) error {
+	auth := smtp.PlainAuth("", s.smtpConfig.Username, s.smtpConfig.Password, s.smtpConfig.Host)
+
+	message := []byte(
+		"From: " + subject + "\r\n" +
+			"To: " + strings.Join(to, ", ") + "\r\n" +
+			"From: " + s.smtpConfig.Username + "\r\n" +
+			"Subject: " + subject + "\r\n" +
+			"MIME-Version: 1.0\r\n" +
+			"Content-Type: text/html; charset=utf-8\r\n" +
+			"\r\n" + // Empty line to separate headers from body
+			body,
+	)
+
+	err := smtp.SendMail(
+		s.smtpConfig.Host+":"+s.smtpConfig.Port,
+		auth,
+		s.smtpConfig.Username,
+		to,
+		message,
+	)
+
+	return err
 }

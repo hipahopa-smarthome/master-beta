@@ -1,16 +1,16 @@
 package handlers
 
 import (
+	"auth-server/db"
 	"auth-server/repository"
 	"auth-server/service"
 	"fmt"
 	"github.com/gin-gonic/gin"
-	"github.com/go-redis/redis/v8"
 	"gorm.io/gorm"
 )
 
-func RegisterAuthRoutes(r *gin.Engine, db *gorm.DB, rdb0 *redis.Client, rdb1 *redis.Client, smtpConfig service.SmtpConfig) {
-	repo := repository.NewUserRepo(db, rdb0, rdb1)
+func RegisterAuthRoutes(r *gin.Engine, db *gorm.DB, redisClients *db.RedisClients, smtpConfig service.SmtpConfig) {
+	repo := repository.NewUserRepo(db, redisClients)
 
 	svc, err := service.NewAuthService(repo, smtpConfig)
 	if err != nil {
@@ -21,6 +21,9 @@ func RegisterAuthRoutes(r *gin.Engine, db *gorm.DB, rdb0 *redis.Client, rdb1 *re
 	r.POST("/auth/login", svc.LoginHandler)
 	r.POST("/auth/token", svc.GetTokenHandler)
 	r.POST("/auth/refresh", svc.RefreshTokenHandler)
+
+	r.POST("/auth/reset-password", svc.ResetPasswordHandler)
+	r.POST("/auth/reset-password/confirm-code", svc.ChangePasswordHandler)
 
 	codeRequestGroup := r.Group("/", svc.JWTAuthMiddleware())
 	codeRequestGroup.POST("/auth/register/code/request", svc.CodeRequestHandler)
