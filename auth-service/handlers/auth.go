@@ -23,7 +23,7 @@ func RegisterAuthRoutes(r *gin.Engine, db *gorm.DB, redisClients *db.RedisClient
 	r.POST("/auth/refresh", svc.RefreshTokenHandler)
 
 	r.POST("/auth/reset-password", svc.ResetPasswordHandler)
-	r.POST("/auth/change-password", svc.ChangePasswordHandler)
+	r.POST("/auth/reset-password/change-password", svc.ResetChangePasswordHandler)
 
 	codeRequestGroup := r.Group("/", svc.JWTAuthMiddleware())
 	codeRequestGroup.POST("/auth/register/code/request", svc.CodeRequestHandler)

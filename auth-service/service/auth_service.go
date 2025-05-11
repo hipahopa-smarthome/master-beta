@@ -577,10 +577,9 @@ func (s *AuthService) ResetPasswordHandler(c *gin.Context) {
 	})
 }
 
-func (s *AuthService) ChangePasswordHandler(c *gin.Context) {
+func (s *AuthService) ResetChangePasswordHandler(c *gin.Context) {
 	type ConfirmResetPasswordRequest struct {
 		Code        string `json:"code"`
-		Email       string `json:"email"`
 		NewPassword string `json:"password" binding:"required"`
 	}
 	var req ConfirmResetPasswordRequest
@@ -590,109 +589,60 @@ func (s *AuthService) ChangePasswordHandler(c *gin.Context) {
 		})
 		return
 	}
-	if req.Code == "" && req.Email == "" {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error": "Invalid request",
+
+	// check if code is valid (present in redis)
+	emailInDb, err := s.repo.GetEmailByResetPasswordCode(req.Code)
+	if err != nil {
+		if errors.Is(err, redis.Nil) {
+			c.JSON(http.StatusForbidden, gin.H{
+				"error": "Reset password code not found",
+			})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": "cannot reset password",
 		})
+		log.Printf("failed to get email by reset password code: %v\n", err)
 		return
 	}
-	if req.Code != "" && req.Email != "" {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error": "Invalid request",
+
+	user, err := s.repo.GetUserByEmail(emailInDb)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			c.JSON(http.StatusForbidden, gin.H{
+				"error": "User with this email not found",
+			})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": "cannot reset password",
 		})
+		log.Printf("failed to get user from db: %v\n", err)
 		return
 	}
-	var user *models.User
-	var err error
-	if req.Code == "" {
-		user, err = s.repo.GetUserByEmail(req.Email)
-		if err != nil {
-			if errors.Is(err, gorm.ErrRecordNotFound) {
-				c.JSON(http.StatusForbidden, gin.H{
-					"error": "User with this email not found",
-				})
-				return
-			}
-			c.JSON(http.StatusInternalServerError, gin.H{
-				"error": "cannot reset password",
-			})
-			log.Printf("failed to get user from db: %v\n", err)
-			return
-		}
 
-		hashedPassword, err := bcrypt.GenerateFromPassword([]byte(req.NewPassword), bcrypt.DefaultCost)
-		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{
-				"error": "cannot reset password",
-			})
-			log.Printf("failed to hash password: %v\n", err)
-			return
-		}
+	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(req.NewPassword), bcrypt.DefaultCost)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": "cannot reset password",
+		})
+		log.Printf("failed to hash password: %v\n", err)
+		return
+	}
 
-		user.Password = string(hashedPassword)
-		err = s.repo.UpdateUserPassword(user.ID, user.Password)
-		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{
-				"error": "cannot reset password",
-			})
-			log.Printf("failed to update user in db: %v\n", err)
-			return
-		}
-	} else {
-		// check if code is valid (present in redis)
-		emailInDb, err := s.repo.GetEmailByResetPasswordCode(req.Code)
-		if err != nil {
-			if errors.Is(err, redis.Nil) {
-				c.JSON(http.StatusForbidden, gin.H{
-					"error": "Reset password code not found",
-				})
-				return
-			}
-			c.JSON(http.StatusInternalServerError, gin.H{
-				"error": "cannot reset password",
-			})
-			log.Printf("failed to get email by reset password code: %v\n", err)
-			return
-		}
+	user.Password = string(hashedPassword)
+	err = s.repo.UpdateUserPassword(user.ID, user.Password)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": "cannot reset password",
+		})
+		log.Printf("failed to update user in db: %v\n", err)
+		return
+	}
 
-		user, err = s.repo.GetUserByEmail(emailInDb)
-		if err != nil {
-			if errors.Is(err, gorm.ErrRecordNotFound) {
-				c.JSON(http.StatusForbidden, gin.H{
-					"error": "User with this email not found",
-				})
-				return
-			}
-			c.JSON(http.StatusInternalServerError, gin.H{
-				"error": "cannot reset password",
-			})
-			log.Printf("failed to get user from db: %v\n", err)
-			return
-		}
-
-		hashedPassword, err := bcrypt.GenerateFromPassword([]byte(req.NewPassword), bcrypt.DefaultCost)
-		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{
-				"error": "cannot reset password",
-			})
-			log.Printf("failed to hash password: %v\n", err)
-			return
-		}
-
-		user.Password = string(hashedPassword)
-		err = s.repo.UpdateUserPassword(user.ID, user.Password)
-		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{
-				"error": "cannot reset password",
-			})
-			log.Printf("failed to update user in db: %v\n", err)
-			return
-		}
-
-		err = s.repo.DeleteResetPasswordCode(req.Code)
-		if err != nil {
-			log.Printf("failed to delete reset password code: %v\n", err)
-		}
+	err = s.repo.DeleteResetPasswordCode(req.Code)
+	if err != nil {
+		log.Printf("failed to delete reset password code: %v\n", err)
 	}
 	c.JSON(http.StatusOK, gin.H{})
 }
