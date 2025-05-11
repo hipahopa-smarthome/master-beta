@@ -14,7 +14,7 @@ import (
 type Claims struct {
 	UserID         string `json:"user_id"`
 	Email          string `json:"email"`
-	EmailConfirmed bool   `json:"confirmed"`
+	EmailConfirmed bool   `json:"email_confirmed"`
 	jwt.RegisteredClaims
 }
 
@@ -88,15 +88,26 @@ func (s *DevicesService) EmailConfirmedAuthMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		s.JWTAuthMiddleware()(c)
 
-		if claims, exists := c.Get("claims"); exists {
-			if cl, ok := claims.(*Claims); ok && cl.EmailConfirmed {
-				c.Next()
-				return
-			}
+		if c.IsAborted() {
+			return
 		}
 
-		c.AbortWithStatusJSON(http.StatusForbidden, gin.H{
-			"error": "Email confirmation required for this endpoint",
-		})
+		emailConfirmed, exists := c.Get("emailConfirmed")
+		if !exists {
+			c.AbortWithStatusJSON(http.StatusForbidden, gin.H{
+				"error": "Email confirmation status not found",
+			})
+			return
+		}
+
+		confirmed, ok := emailConfirmed.(bool)
+		if !ok || !confirmed {
+			c.AbortWithStatusJSON(http.StatusForbidden, gin.H{
+				"error": "Email confirmation required for this endpoint",
+			})
+			return
+		}
+
+		c.Next()
 	}
 }

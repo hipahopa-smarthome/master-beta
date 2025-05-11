@@ -15,7 +15,7 @@ import (
 type Claims struct {
 	UserID         string `json:"user_id"`
 	Email          string `json:"email"`
-	EmailConfirmed bool   `json:"confirmed"`
+	EmailConfirmed bool   `json:"email_confirmed"`
 	jwt.RegisteredClaims
 }
 

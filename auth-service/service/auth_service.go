@@ -391,8 +391,9 @@ func (s *AuthService) LoginHandler(c *gin.Context) {
 		err := s.repo.SetLoginDataByCode(code, clientId, userId, state, scope)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{
-				"error": "Failed to set login data",
+				"error": "failed to set login data",
 			})
+			log.Printf("failed to set login data: %v\n", err)
 			return
 		}
 
@@ -411,6 +412,7 @@ func (s *AuthService) LoginHandler(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, models.LoginResponse{
+		TokenType:    "Bearer",
 		AccessToken:  accessToken,
 		RefreshToken: refreshToken,
 		Email:        user.Email,
@@ -501,6 +503,7 @@ func (s *AuthService) GetTokenHandler(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"error": "Failed to retrieve login data",
 		})
+		log.Printf("Failed to retrieve login data: %v\n", err)
 		return
 	}
 

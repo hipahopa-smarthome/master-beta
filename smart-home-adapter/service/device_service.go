@@ -34,6 +34,7 @@ func (s *DevicesService) AliveStatus(c *gin.Context) {
 }
 
 func (s *DevicesService) UnlinkAccount(c *gin.Context) {
+	// idk what to do here, so
 	c.Status(200)
 }
 
