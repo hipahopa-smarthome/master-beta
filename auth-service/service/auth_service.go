@@ -735,6 +735,9 @@ func (s *AuthService) sendResetPasswordCode(code string, email string) error {
 		font-weight: bold;
 		border-radius: 5px;
 	}
+	a {
+      color: white;
+    }
 	.footer {
 		margin-top: 30px;
 		font-size: 14px;
