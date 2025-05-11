@@ -72,18 +72,104 @@ const handleLogin = async () => {
 </script>
 
 <template>
-  <h2>Login</h2>
-  <form @submit.prevent="handleLogin">
-    <label for="email">Email: </label>
-    <input v-model="form.email" type="text" id="email" name="email" required/><br/><br/>
+  <div class="login-container">
+    <h2>Авторизация</h2>
+    <div class="form-container">
 
-    <label for="password">Password: </label>
-    <input v-model="form.password" type="password" id="password" name="password" required/><br/><br/>
+    </div>
+    <form @submit.prevent="handleLogin" class="login-form">
 
-    <button type="submit">Sign In</button>
-  </form>
+      <input v-model="form.email" type="text" id="email" name="email" placeholder="mail@mail.ru" required/>
+
+      <input v-model="form.password" type="password" id="password" name="password" placeholder="your-password" required/>
+
+      <router-link to="/reset-password" class="forgot-link">Forgot password?</router-link>
+      <p class="register-link">Not a Member? <router-link to="/register" class="forgot-link">Create an account</router-link></p>
+
+      <button type="submit" class>Sign In</button>
+    </form>
+  </div>
 </template>
 
 <style scoped>
+* {
+  color: white;
+}
 
+.login-container {
+  display: flex;
+  flex-direction: column;
+  background: linear-gradient(135deg, #1f1f1f, #3a3a3a);
+  width: 100%;
+  height: 100vh;
+  padding-top: 230px;
+  margin: auto 0;
+}
+
+.form-container {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+}
+
+.login-form {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  width: 100%;
+}
+
+.login-form input {
+  margin: 5px auto;
+  padding: 14px;
+  background-color: #1e1e1e;
+  border: 1px solid #2c2c2c;
+  border-radius: 10px;
+  color: #fff;
+  font-size: 14px;
+  outline: none;
+  transition: border 0.2s;
+  width: 100%;
+  max-width: 300px;
+}
+
+.login-form button {
+  margin-top: 10px;
+  padding: 14px;
+  background: linear-gradient(90deg, #5f9df7, #3a74d9);
+  border: none;
+  border-radius: 10px;
+  color: white;
+  font-weight: bold;
+  font-size: 16px;
+  cursor: pointer;
+  transition: opacity 0.2s;
+  width: 100%;
+  max-width: 300px;
+}
+
+.login-form button:hover {
+  opacity: 0.9;
+}
+
+.forgot-link,
+.register-link {
+  font-size: 13px;
+  color: #b0b0b0;
+  margin-top: 10px;
+  text-align: center;
+}
+
+.register-link a,
+.forgot-link {
+  color: #a0c4ff;
+  text-decoration: none;
+}
+
+.register-link a:hover,
+.forgot-link:hover {
+  text-decoration: underline;
+}
 </style>
