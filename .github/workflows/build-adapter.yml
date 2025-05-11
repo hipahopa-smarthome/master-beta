@@ -3,8 +3,8 @@ name: Build and Push Docker Image
 on:
   push:
     paths:
-      - 'hints/**'
-      - '.github/workflows/build-hints.yml'
+      - 'smart-home-adapter/**'
+      - '.github/workflows/build-adapter.yml'
 
 jobs:
   build:
