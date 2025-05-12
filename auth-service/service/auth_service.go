@@ -155,19 +155,13 @@ func (s *AuthService) RegisterHandler(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusCreated, gin.H{
-		"user": gin.H{
-			"id":        user.ID,
-			"email":     user.Email,
-			"name":      user.Name,
-			"createdAt": user.CreatedAt,
-			"updatedAt": user.UpdatedAt,
-		},
-		"tokens": gin.H{
-			"accessToken":  accessToken,
-			"refreshToken": refreshToken,
-			"expiresAt":    int64(s.accessTokenDuration.Seconds()),
-		},
+	c.JSON(http.StatusCreated, models.LoginResponse{
+		AccessToken:  accessToken,
+		RefreshToken: refreshToken,
+		TokenType:    "Bearer",
+		Email:        "",
+		Confirmed:    false,
+		ExpiresIn:    0,
 	})
 }
 
