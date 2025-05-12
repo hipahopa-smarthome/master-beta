@@ -15,6 +15,7 @@ import (
 	"log"
 	"math/rand"
 	"net/http"
+	"net/mail"
 	"net/smtp"
 	"net/url"
 	"strings"
@@ -81,6 +82,22 @@ func (s *AuthService) RegisterHandler(c *gin.Context) {
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"error": "Invalid request payload",
+		})
+		return
+	}
+
+	// validate email
+	_, err := mail.ParseAddress(req.Email)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": "Invalid email address",
+		})
+		return
+	}
+	// validate password
+	if len(req.Password) < 8 {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": "Password must be at least 8 characters",
 		})
 		return
 	}
@@ -711,7 +728,7 @@ func (s *AuthService) sendResetPasswordCode(code string, email string) error {
 	</body>
 	</html>`, code)
 
-	err := s.sendEmail([]string{email}, "Your Verification Code", emailBody)
+	err := s.sendEmail([]string{email}, "Password Reset Request", emailBody)
 	if err != nil {
 		return fmt.Errorf("failed to send confirmation email: %w", err)
 	}
