@@ -3,7 +3,6 @@
 
 <template>
   <div id="app">
-    <!-- This is where Vue Router injects the current page component -->
     <router-view/>
   </div>
 </template>
