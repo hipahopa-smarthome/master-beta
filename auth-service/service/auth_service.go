@@ -155,13 +155,35 @@ func (s *AuthService) RegisterHandler(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusCreated, models.LoginResponse{
-		AccessToken:  accessToken,
-		RefreshToken: refreshToken,
-		TokenType:    "Bearer",
-		Email:        "",
-		Confirmed:    false,
-		ExpiresIn:    0,
+	//c.JSON(http.StatusCreated, models.LoginResponse{
+	//	AccessToken:  accessToken,
+	//	RefreshToken: refreshToken,
+	//	TokenType:    "Bearer",
+	//	Email:        "",
+	//	Confirmed:    false,
+	//	ExpiresIn:    0,
+	//})
+	c.SetCookie("access_token",
+		accessToken,
+		int(s.accessTokenDuration.Seconds()),
+		"/",
+		"",
+		true,
+		true)
+
+	c.SetCookie(
+		"refresh_token",
+		refreshToken,
+		int(s.refreshTokenDuration.Seconds()),
+		"/",
+		"",
+		true,
+		true,
+	)
+
+	c.JSON(http.StatusOK, gin.H{
+		"email":     user.Email,
+		"confirmed": user.Confirmed,
 	})
 }
 
@@ -327,24 +349,6 @@ func (s *AuthService) LoginHandler(c *gin.Context) {
 		return
 	}
 
-	accessToken, err := s.generateAccessToken(user)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": "Failed to generate access token",
-		})
-		log.Printf("Failed to generate access token: %v\n", err)
-		return
-	}
-
-	refreshToken, err := s.generateRefreshToken(user)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": "Failed to generate refresh token",
-		})
-		log.Printf("Failed to generate refresh token: %v\n", err)
-		return
-	}
-
 	// this part is for yandex-smarthome auth (https://yandex.ru/dev/dialogs/smart-home/doc/ru/auth/how-it-works)
 	if c.Query("smart-home") == "true" {
 		code := uuid.New().String()
@@ -376,14 +380,54 @@ func (s *AuthService) LoginHandler(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, models.LoginResponse{
-		TokenType:    "Bearer",
-		AccessToken:  accessToken,
-		RefreshToken: refreshToken,
-		Email:        user.Email,
-		Confirmed:    user.Confirmed,
-		Name:         user.Name,
-		ExpiresIn:    int64(s.accessTokenDuration.Seconds()),
+	accessToken, err := s.generateAccessToken(user)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": "Failed to generate access token",
+		})
+		log.Printf("Failed to generate access token: %v\n", err)
+		return
+	}
+
+	refreshToken, err := s.generateRefreshToken(user)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": "Failed to generate refresh token",
+		})
+		log.Printf("Failed to generate refresh token: %v\n", err)
+		return
+	}
+
+	c.SetCookie("access_token",
+		accessToken,
+		int(s.accessTokenDuration.Seconds()),
+		"/",
+		"",
+		true,
+		true)
+
+	c.SetCookie(
+		"refresh_token",
+		refreshToken,
+		int(s.refreshTokenDuration.Seconds()),
+		"/",
+		"",
+		true,
+		true,
+	)
+
+	//c.JSON(http.StatusOK, models.LoginResponse{
+	//	TokenType:    "Bearer",
+	//	AccessToken:  accessToken,
+	//	RefreshToken: refreshToken,
+	//	Email:        user.Email,
+	//	Confirmed:    user.Confirmed,
+	//	Name:         user.Name,
+	//	ExpiresIn:    int64(s.accessTokenDuration.Seconds()),
+	//})
+	c.JSON(http.StatusOK, gin.H{
+		"email":     user.Email,
+		"confirmed": user.Confirmed,
 	})
 }
 
@@ -441,14 +485,42 @@ func (s *AuthService) RefreshTokenHandler(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, models.LoginResponse{
-		TokenType:    "Bearer",
-		AccessToken:  accessToken,
-		RefreshToken: refreshTokenNew,
-		Email:        user.Email,
-		Confirmed:    user.Confirmed,
-		ExpiresIn:    int64(s.accessTokenDuration.Seconds()),
-	})
+	yandexQuery := c.PostForm("yandex-smart-home")
+	isYandexRequest := yandexQuery != ""
+
+	if isYandexRequest {
+		c.JSON(http.StatusOK, models.LoginResponse{
+			TokenType:    "Bearer",
+			AccessToken:  accessToken,
+			RefreshToken: refreshTokenNew,
+			ExpiresIn:    int64(s.accessTokenDuration.Seconds()),
+		})
+	} else {
+		c.SetCookie(
+			"access_token",
+			accessToken,
+			int(s.accessTokenDuration.Seconds()),
+			"/",
+			"",
+			true,
+			true,
+		)
+
+		c.SetCookie(
+			"refresh_token",
+			refreshTokenNew,
+			int(s.refreshTokenDuration.Seconds()),
+			"/",
+			"",
+			true,
+			true,
+		)
+
+		c.JSON(http.StatusOK, gin.H{
+			"email":     user.Email,
+			"confirmed": user.Confirmed,
+		})
+	}
 }
 
 // GetTokenHandler is for yandex-smarthome auth (https://yandex.ru/dev/dialogs/smart-home/doc/ru/auth/how-it-works)
@@ -515,13 +587,11 @@ func (s *AuthService) GetTokenHandler(c *gin.Context) {
 		log.Printf("Failed to delete login data: %v\n", err)
 	}
 
-	c.JSON(http.StatusOK, models.LoginResponse{
-		TokenType:    "Bearer",
-		AccessToken:  accessToken,
-		RefreshToken: refreshToken,
-		Email:        user.Email,
-		Confirmed:    user.Confirmed,
-		ExpiresIn:    int64(s.accessTokenDuration.Seconds()),
+	c.JSON(http.StatusOK, gin.H{
+		"token_type":    "Bearer",
+		"access_token":  accessToken,
+		"refresh_token": refreshToken,
+		"expires_in":    s.accessTokenDuration.Seconds(),
 	})
 }
 
