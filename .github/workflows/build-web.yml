@@ -25,7 +25,7 @@ jobs:
       - name: Set Tag
         id: vars
         run: |
-          TAG=$(date +%Y%m%d%H%M)-$(git rev-parse --short HEAD)
+          TAG=$(date +%Y%m%d)-$(git rev-parse --short HEAD)
           echo "tag=$TAG" >> $GITHUB_OUTPUT
 
       - name: Build and Push Docker Image
