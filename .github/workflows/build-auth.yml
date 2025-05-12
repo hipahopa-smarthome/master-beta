@@ -34,5 +34,7 @@ jobs:
           CR_REPOSITORY: auth
           IMAGE_TAG: ${{ steps.vars.outputs.tag }}
         run: |
-          docker build -t cr.yandex/$CR_REGISTRY/$CR_REPOSITORY:$IMAGE_TAG ./auth-service
-          docker push cr.yandex/$CR_REGISTRY/$CR_REPOSITORY:$IMAGE_TAG
+          docker buildx build --push \
+            -t cr.yandex/$CR_REGISTRY/$CR_REPOSITORY:$IMAGE_TAG \
+            -t cr.yandex/$CR_REGISTRY/$CR_REPOSITORY:latest \
+            ./auth-service
