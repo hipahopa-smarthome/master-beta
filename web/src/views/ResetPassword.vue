@@ -188,7 +188,9 @@ watch(() => form.value.confirmedPassword, (newVal) => {
           label="Подтвердите пароль"
           required
       />
-
+      <p class="auth-text">Уже есть аккаунт?
+        <router-link to="/login" class="auth-link">Войти</router-link>
+      </p>
       <button :disabled="isLoading" type="submit" class="reset-password-button">
         {{ isLoading ? 'Сохраняем...' : 'Сохранить пароль' }}
       </button>
