@@ -485,7 +485,7 @@ func (s *AuthService) RefreshTokenHandler(c *gin.Context) {
 		return
 	}
 
-	yandexQuery := c.PostForm("yandex-smart-home")
+	yandexQuery := c.Query("yandex-smart-home")
 	isYandexRequest := yandexQuery != ""
 
 	if isYandexRequest {
