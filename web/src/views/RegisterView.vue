@@ -58,13 +58,12 @@ const handleRegistrationError = (response) => {
 
 const handleRegistrationSuccess = (data) => {
   Cookies.set('access_token', data.access_token, {
-    expires: new Date(Date.now() + data.expires_in * 1000), // Convert seconds to milliseconds
+    expires: new Date(Date.now() + data.expires_in * 1000),
     secure: true, // Use HTTPS
     sameSite: 'Strict',
     path: '/'
   });
 
-  // Set refresh token cookie (expires in 7 days)
   Cookies.set('refresh_token', data.refresh_token, {
     expires: 7, // Days
     secure: true,
@@ -91,7 +90,7 @@ watch(() => form.value.password, (newVal) => {
 
 watch(() => form.value.confirmPassword, (newVal) => {
   errors.value.form = ''
-  errors.value.confirmPassword = validatePassword(newVal)
+  errors.value.confirmedPassword = validatePassword(newVal)
 })
 </script>
 
@@ -118,7 +117,7 @@ watch(() => form.value.confirmPassword, (newVal) => {
 
       <PasswordInput
           v-model:model-value="form.confirmPassword"
-          :error="errors.confirmPassword"
+          :error="errors.confirmedPassword"
           :formError="errors.form"
           placeholder="password again"
           required

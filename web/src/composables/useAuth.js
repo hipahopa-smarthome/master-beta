@@ -6,7 +6,7 @@ export function useAuth() {
     const errors = ref({
         email: '',
         password: '',
-        confirmPassword: '',
+        confirmedPassword: '',
         form: ''
     })
 
@@ -14,7 +14,7 @@ export function useAuth() {
         errors.value = {
             email: '',
             password: '',
-            confirmPassword: '',
+            confirmedPassword: '',
             form: ''
         }
     }
