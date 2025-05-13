@@ -781,7 +781,7 @@ func (s *AuthService) sendResetPasswordCode(code string, email string) error {
 	<h1>Password Reset Request</h1>
 	<p>We received a request to reset your account password. If this was you, please click the button below to continue:</p>
 
-	<a href="https://smarthome.hipahopa.ru/reset-password?code=%s" class="button">Reset Password</a>
+	<a href="https://smarthome.hipahopa.ru/reset-password?code=%s&email=%s" class="button">Reset Password</a>
 
 	<p>If you did not request a password reset, you can safely ignore this email.</p>
 
@@ -790,7 +790,7 @@ func (s *AuthService) sendResetPasswordCode(code string, email string) error {
 	</div>
 	</div>
 	</body>
-	</html>`, code)
+	</html>`, code, email)
 
 	err := s.sendEmail([]string{email}, "Password Reset Request", emailBody)
 	if err != nil {
