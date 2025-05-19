@@ -33,6 +33,10 @@ func (s *DevicesService) AliveStatus(c *gin.Context) {
 	c.Status(200)
 }
 
+func (s *DevicesService) Ping(c *gin.Context) {
+	c.JSON(200, "pong")
+}
+
 func (s *DevicesService) UnlinkAccount(c *gin.Context) {
 	// idk what to do here, so
 	c.Status(200)

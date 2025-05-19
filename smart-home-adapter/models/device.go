@@ -1,9 +1,12 @@
 package models
 
-import "encoding/json"
+import (
+	"encoding/json"
+)
 
 type Device struct {
 	ID          string          `gorm:"type:uuid;primary_key" json:"id"`
+	MacAddress  string          `json:"mac_address"`
 	UserID      string          `gorm:"column:user_id" json:"-"`
 	Description string          `json:"description"`
 	Name        string          `json:"name"`

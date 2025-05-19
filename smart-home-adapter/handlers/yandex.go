@@ -16,6 +16,7 @@ func RegisterYandexRoutes(r *gin.Engine, db *gorm.DB) {
 	}
 
 	r.HEAD("/yandex/v1.0", svc.AliveStatus)
+	r.POST("/ping", svc.Ping)
 
 	protected := r.Group("/")
 	protected.Use(svc.EmailConfirmedAuthMiddleware())
