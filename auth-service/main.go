@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
-	"github.com/go-redis/redis/v8"
 	"log"
 	"os"
 	"time"
@@ -40,20 +39,7 @@ func main() {
 	if RedisUrl == "" {
 		RedisUrl = "localhost:6379"
 	}
-	redisClients := db.NewRedisClients(RedisUrl)
-
-	defer func(DB0 *redis.Client) {
-		err := DB0.Close()
-		if err != nil {
-			log.Fatal(err)
-		}
-	}(redisClients.DB0)
-	defer func(DB1 *redis.Client) {
-		err := DB1.Close()
-		if err != nil {
-			log.Fatal(err)
-		}
-	}(redisClients.DB1)
+	redisClient := db.NewRedisClient(RedisUrl)
 
 	// init smtp
 	smtpConfig := service.SmtpConfig{
@@ -64,7 +50,7 @@ func main() {
 	}
 
 	// register routes
-	handlers.RegisterAuthRoutes(router, database, redisClients, smtpConfig)
+	handlers.RegisterAuthRoutes(router, database, redisClient, smtpConfig)
 
 	if Port == "" {
 		Port = "8080"

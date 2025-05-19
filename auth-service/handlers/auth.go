@@ -1,16 +1,16 @@
 package handlers
 
 import (
-	"auth-server/db"
 	"auth-server/repository"
 	"auth-server/service"
 	"fmt"
 	"github.com/gin-gonic/gin"
+	"github.com/go-redis/redis/v8"
 	"gorm.io/gorm"
 )
 
-func RegisterAuthRoutes(r *gin.Engine, db *gorm.DB, redisClients *db.RedisClients, smtpConfig service.SmtpConfig) {
-	repo := repository.NewUserRepo(db, redisClients)
+func RegisterAuthRoutes(r *gin.Engine, db *gorm.DB, redisClient *redis.Client, smtpConfig service.SmtpConfig) {
+	repo := repository.NewUserRepo(db, redisClient)
 
 	svc, err := service.NewAuthService(repo, smtpConfig)
 	if err != nil {

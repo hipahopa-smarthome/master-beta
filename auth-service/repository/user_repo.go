@@ -15,12 +15,20 @@ import (
 )
 
 type UserRepo struct {
-	db           *gorm.DB
-	redisClients *db.RedisClients
+	database *gorm.DB
+	loginDB  *db.NamespacedRedis
+	codeDB   *db.NamespacedRedis
 }
 
-func NewUserRepo(db *gorm.DB, redisClients *db.RedisClients) *UserRepo {
-	return &UserRepo{db: db, redisClients: redisClients}
+func NewUserRepo(database *gorm.DB, client *redis.Client) *UserRepo {
+	loginDB := db.NewNamespacedRedis(client, "login")
+	codeDB := db.NewNamespacedRedis(client, "code")
+
+	return &UserRepo{
+		database: database,
+		loginDB:  loginDB,
+		codeDB:   codeDB,
+	}
 }
 
 func (r *UserRepo) CreateUser(req *models.RegistrationUser) (*models.User, error) {
@@ -38,7 +46,7 @@ func (r *UserRepo) CreateUser(req *models.RegistrationUser) (*models.User, error
 		Name:     req.Name,
 		Password: string(hashedPassword),
 	}
-	result := r.db.Create(user).First(&user)
+	result := r.database.Create(user).First(&user)
 	if result.Error != nil {
 		return nil, fmt.Errorf("cannot create user: %s\n", result.Error)
 	}
@@ -46,7 +54,7 @@ func (r *UserRepo) CreateUser(req *models.RegistrationUser) (*models.User, error
 }
 
 func (r *UserRepo) UpdateUserPassword(userID string, hashedPassword string) error {
-	result := r.db.Model(&models.User{}).
+	result := r.database.Model(&models.User{}).
 		Where("id = ?", userID).
 		Update("Password", hashedPassword)
 
@@ -63,7 +71,7 @@ func (r *UserRepo) UpdateUserPassword(userID string, hashedPassword string) erro
 
 func (r *UserRepo) GetUserByEmail(email string) (*models.User, error) {
 	var user models.User
-	result := r.db.Where("email = ?", email).First(&user)
+	result := r.database.Where("email = ?", email).First(&user)
 	if result.Error != nil {
 		return nil, result.Error
 	}
@@ -72,7 +80,7 @@ func (r *UserRepo) GetUserByEmail(email string) (*models.User, error) {
 
 func (r *UserRepo) GetUserById(id string) (*models.User, error) {
 	var user models.User
-	result := r.db.Where("id = ?", id).First(&user)
+	result := r.database.Where("id = ?", id).First(&user)
 	if result.Error != nil {
 		return nil, result.Error
 	}
@@ -94,7 +102,7 @@ func (r *UserRepo) SetLoginDataByCode(code string, clientId string, userId strin
 		return fmt.Errorf("failed to marshal login data: %w", err)
 	}
 
-	err = r.redisClients.DB0.Set(ctx, code, data, time.Minute*15).Err()
+	err = r.loginDB.Set(ctx, code, string(data), time.Minute*15)
 	if err != nil {
 		return fmt.Errorf("failed saving code to redis: %w", err)
 	}
@@ -105,7 +113,7 @@ func (r *UserRepo) SetLoginDataByCode(code string, clientId string, userId strin
 func (r *UserRepo) GetLoginDataByCode(code string) (*models.LoginData, error) {
 	ctx := context.Background()
 
-	data, err := r.redisClients.DB0.Get(ctx, code).Result()
+	data, err := r.loginDB.Get(ctx, code)
 	if errors.Is(err, redis.Nil) {
 		return nil, fmt.Errorf("code not found in redis")
 	} else if err != nil {
@@ -124,7 +132,7 @@ func (r *UserRepo) GetLoginDataByCode(code string) (*models.LoginData, error) {
 func (r *UserRepo) DeleteLoginDataByCode(code string) error {
 	ctx := context.Background()
 
-	err := r.redisClients.DB0.Del(ctx, code).Err()
+	err := r.loginDB.Del(ctx, code)
 	if err != nil {
 		return fmt.Errorf("failed deleting code from redis: %w", err)
 	}
@@ -135,7 +143,7 @@ func (r *UserRepo) DeleteLoginDataByCode(code string) error {
 func (r *UserRepo) SetEmailConfirmationCode(code string, email string, expiresAt time.Duration) error {
 	ctx := context.Background()
 
-	err := r.redisClients.DB1.Set(ctx, code, email, expiresAt).Err()
+	err := r.codeDB.Set(ctx, code, email, expiresAt)
 	if err != nil {
 		return fmt.Errorf("failed saving confirmation code to redis: %w", err)
 	}
@@ -146,7 +154,7 @@ func (r *UserRepo) SetEmailConfirmationCode(code string, email string, expiresAt
 func (r *UserRepo) CheckCodeWithEmail(code string, email string) (bool, error) {
 	ctx := context.Background()
 
-	emailInDb, err := r.redisClients.DB1.Get(ctx, code).Result()
+	emailInDb, err := r.codeDB.Get(ctx, code)
 	if err != nil {
 		return false, err
 	}
@@ -155,7 +163,7 @@ func (r *UserRepo) CheckCodeWithEmail(code string, email string) (bool, error) {
 }
 
 func (r *UserRepo) SetUserStatusConfirmed(email string) error {
-	return r.db.
+	return r.database.
 		Model(&models.User{}).
 		Where("email = ?", email).
 		Update("confirmed", true).Error
@@ -164,7 +172,7 @@ func (r *UserRepo) SetUserStatusConfirmed(email string) error {
 func (r *UserRepo) SetResetPasswordCode(code string, email string) error {
 	ctx := context.Background()
 
-	err := r.redisClients.DB1.Set(ctx, code, email, time.Minute*15).Err()
+	err := r.codeDB.Set(ctx, code, email, time.Minute*15)
 	if err != nil {
 		return err
 	}
@@ -175,7 +183,7 @@ func (r *UserRepo) SetResetPasswordCode(code string, email string) error {
 func (r *UserRepo) GetEmailByResetPasswordCode(code string) (string, error) {
 	ctx := context.Background()
 
-	email, err := r.redisClients.DB1.Get(ctx, code).Result()
+	email, err := r.codeDB.Get(ctx, code)
 	if err != nil {
 		return "", err
 	}
@@ -186,7 +194,7 @@ func (r *UserRepo) GetEmailByResetPasswordCode(code string) (string, error) {
 func (r *UserRepo) DeleteResetPasswordCode(code string) error {
 	ctx := context.Background()
 
-	err := r.redisClients.DB1.Del(ctx, code).Err()
+	err := r.codeDB.Del(ctx, code)
 	if err != nil {
 		return fmt.Errorf("failed deleting code from redis: %w", err)
 	}
