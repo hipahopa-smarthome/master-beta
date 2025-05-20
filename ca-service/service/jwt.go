@@ -39,7 +39,7 @@ func (s *CertService) ValidateToken(tokenString string) (*Claims, error) {
 		return nil, fmt.Errorf("invalid token")
 	}
 
-	if claims.ExpiresAt.Before(time.Now()) {
+	if claims.ExpiresAt != nil && claims.ExpiresAt.Before(time.Now()) {
 		return nil, fmt.Errorf("token is expired")
 	}
 
