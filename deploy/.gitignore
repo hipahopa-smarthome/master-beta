@@ -2,4 +2,6 @@
 keys
 postgres
 redis
+emqx
+certs
 docker-compose.yml

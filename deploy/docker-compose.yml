@@ -21,13 +21,28 @@ services:
       - ./redis:/data
     restart: unless-stopped
 
+  emqx:
+    image: emqx/emqx:5.8
+    ports:
+      - "1883:1883"        # MQTT TCP default
+      - "8883:8883"        # MQTT over TLS
+      - "8083:8083"        # WS
+      - "8084:8084"        # WSS
+      - "18083:18083"      # Dashboard
+    environment:
+      - EMQX_NODE_HOST=emqx
+    volumes:
+      - ./emqx/data:/opt/emqx/data
+      - ./emqx/log:/opt/emqx/log
+
   auth-service:
-    image: arsanoshin/smart-home-auth-service:latest
+    image: cr.yandex/crpeotdomuljuu8m735b/auth:latest
+    platform: linux/amd64
     container_name: auth-service
     ports:
-      - "8081:8081"
+      - "8081:8080"
     environment:
-      PORT: 8081
+      PORT: 8080
       POSTGRES_URL: postgresql://user:insecure@postgres:5432/smart-home
       REDIS_URL: redis:6379
       SMTP_HOST: <host>
@@ -43,12 +58,13 @@ services:
     restart: unless-stopped
 
   devices-api-service:
-    image: arsanoshin/smart-home-devices-api-service:latest
+    image: cr.yandex/crpeotdomuljuu8m735b/adapter:latest
+    platform: linux/amd64
     container_name: devices-api-service
     ports:
-      - "8082:8082"
+      - "8082:8080"
     environment:
-      PORT: 8082
+      PORT: 8080
       POSTGRES_URL: postgresql://user:insecure@postgres:5432/smart-home
       GIN_MODE: release
     volumes:
@@ -58,9 +74,39 @@ services:
       - auth-service
     restart: unless-stopped
 
+  token-issuer:
+    image: cr.yandex/crpeotdomuljuu8m735b/token-issuer:latest
+    platform: linux/amd64
+    container_name: token-issuer
+    ports:
+      - "8083:8080"
+    environment:
+      PORT: 8080
+    volumes:
+      - ./keys:/app/keys:ro
+    restart: unless-stopped
+
+  ca:
+    image: cr.yandex/crpeotdomuljuu8m735b/ca:latest
+    platform: linux/amd64
+    container_name: ca
+    ports:
+      - "8084:8080"
+    environment:
+      PORT: 8080
+      REDIS_URL: redis:6379
+      POSTGRES_URL: postgresql://user:insecure@postgres:5432/smart-home
+      CA_CERT_PATH: certs/ca.crt
+      CA_KEY_PATH: certs/ca.key
+    volumes:
+      - ./certs:/app/certs:ro
+      - ./keys:/app/keys:ro
+    restart: unless-stopped
+
   web:
-    image: arsanoshin/smart-home-devices-web:latest
+    image: cr.yandex/crpeotdomuljuu8m735b/web:latest
+    platform: linux/amd64
     container_name: web
     ports:
-      - "8083:8083"
+      - "9083:80"
     restart: unless-stopped
